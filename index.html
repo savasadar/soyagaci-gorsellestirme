@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Soyağacı Görselleştirici</title>
+<style>
+:root{--bg:#f6f3ec;--surf:#fffdf8;--ink:#2a2520;--mute:#7a7167;--line:#b9ad99;--m:#dbe8f3;--mb:#5b87ad;--f:#f6e0e4;--fb:#c0707f;--u:#ece8df;--ub:#a69c8c;--acc:#7a4b2a;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#1b1815;--surf:#26221e;--ink:#eee7da;--mute:#a09686;--line:#5d5446;--m:#223748;--mb:#6f9cc4;--f:#4a2830;--fb:#d98a98;--u:#2f2a24;--ub:#7d7364;--acc:#e0a672}}
+:root[data-theme="dark"]{--bg:#1b1815;--surf:#26221e;--ink:#eee7da;--mute:#a09686;--line:#5d5446;--m:#223748;--mb:#6f9cc4;--f:#4a2830;--fb:#d98a98;--u:#2f2a24;--ub:#7d7364;--acc:#e0a672}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 Georgia,'Times New Roman',serif}
+header{padding:22px 20px 8px;max-width:1100px;margin:0 auto}
+h1{margin:0;font-size:28px;letter-spacing:.2px;color:var(--acc)}
+header p{margin:4px 0 0;color:var(--mute);font-size:14px}
+.panel{max-width:1100px;margin:10px auto;padding:0 20px}
+textarea{width:100%;height:120px;background:var(--surf);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:10px;font:12px/1.4 ui-monospace,Menlo,Consolas,monospace;resize:vertical}
+.bar{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0;align-items:center}
+button{background:var(--surf);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:7px 14px;font:inherit;cursor:pointer}
+button.p{background:var(--acc);color:var(--bg);border-color:var(--acc)}
+.msg{color:var(--mute);font-size:13px}
+.msg.err{color:#c0392b}
+#view{margin:6px 12px 0;border:1px solid var(--line);border-radius:10px;background:var(--surf);overflow:auto;height:62vh;min-height:320px}
+#sizer{position:relative}
+#stage{position:absolute;left:0;top:0;transform-origin:0 0}
+svg{position:absolute;left:0;top:0;overflow:visible}
+.card{position:absolute;width:196px;height:74px;border:1.5px solid;border-radius:8px;padding:6px 9px;cursor:pointer;overflow:hidden;transition:transform .12s}
+.card:hover{transform:translateY(-2px)}
+.card.sel{outline:3px solid var(--acc)}
+.card.M{background:var(--m);border-color:var(--mb)}.card.F{background:var(--f);border-color:var(--fb)}.card.U{background:var(--u);border-color:var(--ub);border-style:dashed}
+.card b{display:block;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.card small{display:block;color:var(--mute);font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.card .rel{color:var(--acc);font-weight:bold}
+#detail{max-width:1100px;margin:12px auto 30px;padding:0 20px}
+#detail dl{display:grid;grid-template-columns:max-content 1fr;gap:4px 14px;margin:0;background:var(--surf);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+#detail dt{color:var(--mute)}#detail dd{margin:0}
+.extra{font-size:13px;color:var(--mute);margin-top:6px}
+</style>
+</head>
+<body>
+<header>
+<h1>Soyağacı</h1>
+<p>e-Devlet’ten aldığınız tabloyu aşağıya yapıştırın (başlık satırıyla birlikte olabilir); “Yakınlık Derecesi” sütunundan ağaç otomatik kurulur.</p>
+</header>
+<div class="panel">
+<textarea id="inp" placeholder="Tabloyu buraya yapıştırın…" spellcheck="false"></textarea>
+<div class="bar">
+<button class="p" id="go">Ağacı Çiz</button>
+<button id="demo">Örnek</button>
+<button id="clr">Temizle</button>
+<span style="flex:1"></span>
+<button id="zo" aria-label="Uzaklaştır">−</button><button id="zi" aria-label="Yakınlaştır">+</button>
+<span class="msg" id="msg"></span>
+</div>
+</div>
+<div id="view"><div id="sizer"><div id="stage"><svg id="svg"></svg></div></div></div>
+<div id="detail"></div>
+
+<script>
+var W=196,H=74,GX=64,GY=16,zoom=1,nodes={},extra=[];
+var $=function(i){return document.getElementById(i)};
+var DEMO="Sıra\tC\tYakınlık Derecesi\tAdı\tSoyadı\tBaba Adı\tAna Adı\tDoğum Yeri ve Tarihi\tİl-İlçe-Mahalle/Köy\tCilt-Hane-Birey Sıra No\tMedeni Hali\tDurumu\n"+
+"1\tE\tBabası\tMEHMET\tYILMAZ\tHASAN\tAYŞE\tANKARA 03/05/1960\tAnkara/Çankaya\t10-2-1\tEvli\tSağ\n"+
+"2\tK\tAnnesi\tZEYNEP\tYILMAZ\tİBRAHİM\tHATİCE\tBOLU 11/02/1963\tBolu/Merkez\t11-3-2\tEvli\tSağ\n"+
+"3\tE\tBabasının Babası\tHASAN\tYILMAZ\tALİ\tFATMA\tÇANKIRI 01/01/1930\tÇankırı/Merkez\t5-1-1\tEvli\tÖlüm\n12/09/2001\n"+
+"4\tK\tBabasının Annesi\tAYŞE\tYILMAZ\tOSMAN\tEMİNE\tÇANKIRI 07/07/1934\tÇankırı/Merkez\t5-1-2\tEvli\tÖlüm\n03/03/2010\n"+
+"5\tE\tAnnesinin Babası\tİBRAHİM\tKARA\tALİ\tSULTAN\tBOLU 05/05/1935\tBolu/Merkez\t7-4-1\tEvli\tÖlüm\n02/02/2015\n"+
+"6\tK\tAnnesinin Annesi\tHATİCE\tKARA\tMUSTAFA\tGÜLSÜM\tBOLU 09/09/1938\tBolu/Merkez\t7-4-2\tEvli\tSağ\n"+
+"7\tE\tAnnesinin Babasının Babası\tALİ\t-\tMEHMET\tFATMA\tÇANDIRLAR 01/07/1837\tKarabük/Eskipazar/ÇANDIRLAR KÖYÜ\t18-20-1\tEvli\tÖlüm\n15/07/1908";
+
+function parse(txt){
+  var recs=[],cur=null;
+  txt.replace(/\r/g,"").split("\n").forEach(function(l){
+    if(/^\s*\d+\s*(\t|\s{2,})\s*[EKek]\s*(\t|\s{2,})/.test(l)){cur=[l];recs.push(cur)}
+    else if(cur&&l.trim())cur.push(l);
+  });
+  return recs.map(function(r){
+    var s=r.join(" "),f=s.split("\t").map(function(x){return x.trim()}).filter(function(x,i){return true});
+    if(f.length<10)f=s.split(/\s{2,}/).map(function(x){return x.trim()});
+    var d=/\d{2}\/\d{2}\/\d{4}/,bd=(f[7]||"").match(d),dd=(f[11]||"").match(d);
+    return{sira:f[0],c:(f[1]||"").toUpperCase(),rel:f[2]||"",ad:f[3]||"",soyad:f[4]||"",baba:f[5]||"",ana:f[6]||"",
+      dogum:bd?bd[0]:"",yer:(f[7]||"").replace(d,"").trim(),adres:f[8]||"",cilt:f[9]||"",medeni:f[10]||"",
+      durum:(f[11]||"").replace(d,"").trim(),olum:dd?dd[0]:""};
+  });
+}
+function pathOf(rel){
+  var w=rel.toLocaleLowerCase("tr").trim().split(/\s+/),p="";
+  if(w.length==1&&w[0]=="kendisi")return"";
+  for(var i=0;i<w.length;i++){
+    if(w[i].indexOf("anne")==0)p+="A";else if(w[i].indexOf("baba")==0)p+="B";else return null;
+  }
+  return p||null;
+}
+function yr(s){return s?s.slice(-4):"?"}
+function build(){
+  var recs=parse($("inp").value);
+  nodes={};extra=[];
+  if(!recs.length){setMsg("Geçerli satır bulunamadı. Tabloyu sütunlar sekmeyle ayrılmış halde yapıştırın.",1);return}
+  recs.forEach(function(r){var p=pathOf(r.rel);if(p===null)extra.push(r);else nodes[p]=r});
+  if(!nodes[""])nodes[""]={ad:"Kendisi",soyad:"",rel:"Kendisi",c:"U",ph:1};
+  Object.keys(nodes).forEach(function(p){
+    for(var i=p.length-1;i>=0;i--){var q=p.slice(0,i);if(!nodes[q])nodes[q]={ad:"Bilinmiyor",soyad:"",c:q.slice(-1)=="B"?"E":q.slice(-1)=="A"?"K":"U",rel:"",ph:1}}
+  });
+  draw();
+  setMsg(recs.length+" kayıt, "+(Math.max.apply(null,Object.keys(nodes).map(function(k){return k.length}))+1)+" kuşak"+(extra.length?" · "+extra.length+" kayıt ağaca yerleşmedi":""));
+}
+function setMsg(t,e){$("msg").textContent=t;$("msg").className="msg"+(e?" err":"")}
+var pos={},slot=0;
+function lay(p){
+  var k=[p+"B",p+"A"].filter(function(x){return nodes[x]});
+  var y;
+  if(!k.length){y=slot++}else{var ys=k.map(lay);y=(ys[0]+ys[ys.length-1])/2}
+  pos[p]={x:p.length,y:y};return y;
+}
+function draw(){
+  pos={};slot=0;lay("");
+  var st=$("stage"),svg=$("svg");
+  Array.prototype.slice.call(st.querySelectorAll(".card")).forEach(function(c){c.remove()});
+  var maxX=0,maxY=0,lines="";
+  Object.keys(nodes).forEach(function(p){
+    var q=pos[p],n=nodes[p],x=q.x*(W+GX)+20,y=q.y*(H+GY)+20;q.px=x;q.py=y;
+    maxX=Math.max(maxX,x+W+20);maxY=Math.max(maxY,y+H+20);
+  });
+  Object.keys(nodes).forEach(function(p){
+    var q=pos[p],n=nodes[p];
+    [p+"B",p+"A"].forEach(function(c){
+      if(!nodes[c])return;var r=pos[c],x1=q.px+W,y1=q.py+H/2,x2=r.px,y2=r.py+H/2,mx=(x1+x2)/2;
+      lines+='<path d="M'+x1+' '+y1+'C'+mx+' '+y1+' '+mx+' '+y2+' '+x2+' '+y2+'" fill="none" stroke="var(--line)" stroke-width="1.6"/>';
+    });
+    var d=document.createElement("div");
+    d.className="card "+(n.c=="E"?"M":n.c=="K"?"F":"U");d.style.left=q.px+"px";d.style.top=q.py+"px";
+    var last=n.rel?n.rel.split(/\s+/).pop():(p?"":"Kendisi");
+    var life=n.ph?"":yr(n.dogum)+" – "+(n.olum?yr(n.olum):(/ölüm/i.test(n.durum)?"†":"sağ"));
+    var b=document.createElement("b");b.textContent=(n.ad+" "+(n.soyad&&n.soyad!="-"?n.soyad:"")).trim();
+    var s1=document.createElement("small"),s2=document.createElement("small");
+    s1.innerHTML='<span class="rel"></span>';s1.firstChild.textContent=last+(p?" · "+p.length+". kuşak":"");
+    s2.textContent=life+(n.yer?" · "+n.yer:"");
+    d.appendChild(b);d.appendChild(s1);d.appendChild(s2);
+    d.onclick=function(){Array.prototype.forEach.call(st.querySelectorAll(".card"),function(c){c.classList.remove("sel")});d.classList.add("sel");detail(n)};
+    st.appendChild(d);
+  });
+  svg.setAttribute("width",maxX);svg.setAttribute("height",maxY);svg.innerHTML=lines;
+  st.style.width=maxX+"px";st.style.height=maxY+"px";
+  st.dataset.w=maxX;st.dataset.h=maxY;
+  applyZoom();detail(null);
+}
+function applyZoom(){
+  var st=$("stage"),w=+st.dataset.w||0,h=+st.dataset.h||0;
+  st.style.transform="scale("+zoom+")";$("sizer").style.width=w*zoom+"px";$("sizer").style.height=h*zoom+"px";
+}
+function detail(n){
+  var el=$("detail");el.innerHTML="";
+  if(!n){
+    if(extra.length){var e=document.createElement("div");e.className="extra";
+      e.textContent="Ağaca yerleşmeyen kayıtlar: "+extra.map(function(r){return r.ad+" "+r.soyad+" ("+r.rel+")"}).join("; ");el.appendChild(e)}
+    return;
+  }
+  if(n.ph){el.textContent="Bu kişi için tabloda kayıt yok.";el.className="extra";return}
+  var rows=[["Yakınlık",n.rel],["Ad Soyad",n.ad+" "+n.soyad],["Baba / Ana adı",n.baba+" / "+n.ana],
+    ["Doğum",(n.yer+" "+n.dogum).trim()],["Kayıtlı olduğu yer",n.adres],["Cilt-Hane-Birey",n.cilt],
+    ["Medeni hâl",n.medeni],["Durum",(n.durum+(n.olum?" · "+n.olum:"")).trim()]];
+  var dl=document.createElement("dl");
+  rows.forEach(function(r){var a=document.createElement("dt"),b=document.createElement("dd");a.textContent=r[0];b.textContent=r[1]||"—";dl.appendChild(a);dl.appendChild(b)});
+  el.className="";el.appendChild(dl);
+}
+$("go").onclick=build;
+$("demo").onclick=function(){$("inp").value=DEMO;build()};
+$("clr").onclick=function(){$("inp").value="";nodes={};$("stage").querySelectorAll(".card").forEach(function(c){c.remove()});$("svg").innerHTML="";$("sizer").style.width=$("sizer").style.height="0";$("detail").innerHTML="";setMsg("")};
+$("zi").onclick=function(){zoom=Math.min(2,zoom+.15);applyZoom()};
+$("zo").onclick=function(){zoom=Math.max(.3,zoom-.15);applyZoom()};
+</script>
+</body>
+</html>
